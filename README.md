@@ -41,8 +41,8 @@ In eclair.conf add:
 
 | Config Parameter       | Description                                                                                                                             | Default Value |
 |------------------------|-----------------------------------------------------------------------------------------------------------------------------------------|---------------|
-| nostr.alarmbot.relay           | A URL of a Nostr relay. Consider using a private relay or a public one that supports NIP-42.                                            |               |
-| nostr.alarmbot.seckey          | An optional bot's private key in NIP-19 format. If absent the bot will generate a private key and store it in `nostralarmbot.key` file. |               |
-| nostr.alarmbot.receivers       | A list of receivers' public keys in NIP-19 format.                                                                                      |               |
-| nostr.alarmbot.eventExpiration | An optional event expiration duration.                                                                                                  | never expire  |
-| nostr.alarmbot.useProxy        | Use SOCKS5 proxy if the Eclair node is configured to use it.                                                                            | true          |
+| eclair.nostr.alarmbot.relay           | A URL of a Nostr relay. Consider using a private relay or a public one that supports NIP-42.                                            |               |
+| eclair.nostr.alarmbot.seckey          | An optional bot's private key in NIP-19 format. If absent the bot will generate a private key and store it in `nostralarmbot.key` file. |               |
+| eclair.nostr.alarmbot.receivers       | A list of receivers' public keys in NIP-19 format.                                                                                      |               |
+| eclair.nostr.alarmbot.eventExpiration | An optional event expiration duration.                                                                                                  | never expire  |
+| eclair.nostr.alarmbot.useProxy        | Use SOCKS5 proxy if the Eclair node is configured to use it.                                                                            | true          |
