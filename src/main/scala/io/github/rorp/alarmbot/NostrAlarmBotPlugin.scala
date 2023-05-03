@@ -14,7 +14,7 @@ class NostrAlarmBotPlugin extends Plugin with Logging {
   }
 
   override def onSetup(setup: Setup): Unit = {
-    pluginConfig = new Config(datadir = setup.datadir)
+    pluginConfig = new Config(setup.config, setup.datadir)
   }
 
   override def onKit(kit: Kit): Unit = {

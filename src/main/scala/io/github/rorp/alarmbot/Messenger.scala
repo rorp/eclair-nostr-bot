@@ -49,14 +49,55 @@ class Messenger private(config: Config, socks5ProxyParams: Option[Socks5ProxyPar
 
   private implicit val codecs: Codecs = JacksonCodecs
 
+  def debug(msg: => String, log: Logger): Unit = {
+    if (log.isDebugEnabled()) {
+      log.debug(s"$LOG_PREFIX $msg");
+    }
+  }
+
+  def debug(msg: => String): Unit = {
+    debug(msg, context.log)
+  }
+
+  def info(msg: => String, log: Logger): Unit = {
+    if (log.isInfoEnabled()) {
+      log.info(s"$LOG_PREFIX $msg")
+    }
+  }
+
+  def info(msg: => String): Unit = {
+    info(msg, context.log)
+  }
+
+  def warn(msg: => String, log: Logger): Unit = {
+    if (log.isWarnEnabled()) {
+      log.warn(s"$LOG_PREFIX $msg");
+    }
+  }
+
+  def warn(msg: => String): Unit = {
+    warn(msg, context.log)
+  }
+
+  def error(msg: => String, log: Logger): Unit = {
+    if (log.isErrorEnabled()) {
+      log.error(s"$LOG_PREFIX $msg");
+    }
+  }
+
+  def error(msg: => String): Unit = {
+    error(msg, context.log)
+  }
+
+
   def waiting: Behavior[Command] = {
     Behaviors.receiveMessagePartial {
       case Connect =>
         connect(context.system.classicSystem)
         connecting
       case SendMessage(message, tag) =>
-        context.log.info(s"i $message")
-        stashEvents(message, tag, context.log)
+        debug(s"message to stash: $message")
+        stashEvents(message, tag)
         Behaviors.same
     }
   }
@@ -72,8 +113,8 @@ class Messenger private(config: Config, socks5ProxyParams: Option[Socks5ProxyPar
       case Reconnect =>
         reconnect
       case SendMessage(message, tag) =>
-        context.log.info(s"x $LOG_PREFIX $message ")
-        stashEvents(message, tag, context.log)
+        debug(s"message to send: $message ")
+        stashEvents(message, tag)
         Behaviors.same
     }
   }
@@ -81,14 +122,14 @@ class Messenger private(config: Config, socks5ProxyParams: Option[Socks5ProxyPar
   def connected(nostrClient: NostrClient): Behavior[Command] = {
     implicit val ec = context.executionContext
     val log = context.log
-    nostrClient.relayInformation(Vector()).foreach(info => log.info(s"$LOG_PREFIX relay info: $info"))
+    nostrClient.relayInformation(Vector()).foreach(relayInfo => info(s"relay info: $relayInfo", log))
     Behaviors.receiveMessagePartial {
       case SendEvent(dm, tag) =>
-        context.log.info(s"z $LOG_PREFIX $dm ")
+        debug(s"event to send: $dm ")
         publish(nostrClient, dm, tag)
         Behaviors.same
       case SendMessage(message, tag) =>
-        context.log.info(s"y $LOG_PREFIX $message ")
+        debug(s"message to send: $message ")
         config.receivers.foreach { pubkey =>
           val dm = NostrEvent.encryptedDirectMessage(config.seckey, message, pubkey, expiration = expiration)(JacksonCodecs)
           publish(nostrClient, dm, tag)
@@ -119,7 +160,7 @@ class Messenger private(config: Config, socks5ProxyParams: Option[Socks5ProxyPar
       }
     }
     if (delay > 0.millis) {
-      context.log.info(s"$LOG_PREFIX next connection attempt in $delay")
+      info(s"next connection attempt in $delay")
     }
     val self = context.self
     context.system.scheduler.scheduleOnce(delay, () => self ! Connect)
@@ -134,18 +175,16 @@ class Messenger private(config: Config, socks5ProxyParams: Option[Socks5ProxyPar
       case EncryptedDirectMessage(_, receiverPublicKey, _, _, _) => s" to ${receiverPublicKey.toBech32} ${receiverPublicKey.toHex}"
       case _ => ""
     }
-    log.debug(s"$LOG_PREFIX sending message ${dm.id.toHex} $to")
+    debug(s"sending message ${dm.id.toHex} $to", log)
     nostrClient.publish(dm).map(_ => dm.id).onComplete {
-      case Success(id) => log.info(s"$LOG_PREFIX sent ${id.toHex} '$tag'")
+      case Success(id) => info(s"sent ${id.toHex} '$tag'", log)
       case Failure(reason) =>
-        log.error(s"$LOG_PREFIX failed to send '$tag', reason: ${reason.getMessage}")
+        error(s"failed to send '$tag', reason: ${reason.getMessage}", log)
     }
   }
 
   private def connect(implicit system: ActorSystem): Future[Unit] = {
     implicit val ec: ExecutionContext = system.dispatcher
-    val log = context.log
-
     val (socks5Url, socks5User, socks5Pass) = socks5ProxyParams match {
       case Some(proxyParams) if config.useProxy =>
         val socks5Url = Some(s"tcp://${proxyParams.address.getHostString}:${proxyParams.address.getPort}")
@@ -158,7 +197,8 @@ class Messenger private(config: Config, socks5ProxyParams: Option[Socks5ProxyPar
         (None, None, None)
     }
 
-    log.info(s"$LOG_PREFIX connecting to ${config.relay}${if (socks5Url.nonEmpty) " via " + socks5Url.get else ""}")
+    info(s"connecting to ${config.relay}${if (socks5Url.nonEmpty) " via " + socks5Url.get else ""}")
+
     val client = new AkkaHttpNostrClient(
       url = config.relay,
       socks5Proxy = socks5Url,
@@ -167,9 +207,11 @@ class Messenger private(config: Config, socks5ProxyParams: Option[Socks5ProxyPar
       connectionTimeout = config.connectionTimeout,
       keepAliveMaxIdle = config.keepAliveMaxIdle)
 
+    val log = context.log
+
     client.addRelayMessageCallback(msg => Future.successful(context.self ! ProcessRelayMessage(msg)))
     client.addDisconnectionCallback { () =>
-      log.info(s"$LOG_PREFIX disconnected from ${config.relay}")
+      info(s"disconnected from ${config.relay}", log)
       Future.successful(context.self ! Reconnect)
     }
 
@@ -179,10 +221,10 @@ class Messenger private(config: Config, socks5ProxyParams: Option[Socks5ProxyPar
 
     res.onComplete {
       case Success(_) =>
-        log.info(s"$LOG_PREFIX connected to ${config.relay}")
+        info(s"connected to ${config.relay}", log)
         self ! Connected(client)
       case Failure(exception) =>
-        log.error(s"$LOG_PREFIX cannot connect to ${config.relay} $exception")
+        error(s"cannot connect to ${config.relay} $exception")
         exception match {
           case _: TimeoutException => self ! Reconnect
           case _ => ()
@@ -192,34 +234,32 @@ class Messenger private(config: Config, socks5ProxyParams: Option[Socks5ProxyPar
     res
   }
 
-  private def stashEvents(message: String, tag: String, log: Logger): Unit = {
-    log.info(s"b $events")
+  private def stashEvents(message: String, tag: String): Unit = {
     val newEvents = config.receivers.map { pubkey =>
       SendEvent(NostrEvent.encryptedDirectMessage(config.seckey, message, pubkey, expiration = expiration)(JacksonCodecs), tag)
     }
     val diff = Math.max(0, events.size + newEvents.size - config.maxMessageBufferSize)
     events.remove(0, diff)
     events.addAll(newEvents)
-    log.info(s"a $events")
+    debug(s"stashed events $events")
   }
 
   private def processRelayMessage(nostrClient: NostrClient, relayMessage: NostrRelayMessage)(implicit ec: ExecutionContext): Unit = {
-    val log: Logger = context.log
     relayMessage match {
       case auth: AuthRelayMessage =>
-        log.warn(s"$LOG_PREFIX unexpected AUTH message $auth")
+        warn(s"unexpected AUTH message $auth")
       case eose: EndOfStoredEventsRelayMessage =>
-        log.warn(s"$LOG_PREFIX unexpected EOSE message $eose")
+        warn(s"unexpected EOSE message $eose")
       case event: EventRelayMessage =>
-        log.warn(s"$LOG_PREFIX unexpected EVENT message $event")
+        warn(s"unexpected EVENT message $event")
       case NoticeRelayMessage(message) =>
-        log.warn(s"$LOG_PREFIX notice: $message")
+        warn(s"notice: $message")
       case OkRelayMessage(eventId, result) =>
         result match {
           case OkRelayMessage.Saved(msg) =>
-            log.info(s"$LOG_PREFIX message ${eventId.toHex} saved $msg")
+            info(s"message ${eventId.toHex} saved $msg")
           case rejected: OkRelayMessage.Rejected =>
-            log.error(s"$LOG_PREFIX message ${eventId.toHex} rejected: ${rejected.message}")
+            error(s"message ${eventId.toHex} rejected: ${rejected.message}")
         }
       case _ => ()
     }
