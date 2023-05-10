@@ -10,7 +10,6 @@ import org.slf4j.Logger
 import snostr.client.akkahttp.AkkaHttpNostrClient
 import snostr.client.akkahttp.AkkaHttpNostrClient.TimeoutException
 import snostr.codec.jackson.JacksonCodecs
-import snostr.core.OkRelayMessage.AuthRelayMessage
 import snostr.core._
 
 import java.time.Instant
