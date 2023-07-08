@@ -3,6 +3,7 @@ package io.github.rorp.alarmbot
 import akka.actor.typed.eventstream.EventStream
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ActorRef, Behavior}
+import fr.acinq.bitcoin.scalacompat.Satoshi
 import fr.acinq.eclair.NotificationsLogger.NotifyNodeOperator
 import fr.acinq.eclair.blockchain.bitcoind.zmq.ZMQActor.{ZMQConnected, ZMQDisconnected, ZMQEvent}
 import fr.acinq.eclair.blockchain.watchdogs.BlockchainWatchdog.DangerousBlocksSkew
@@ -46,7 +47,7 @@ object Watchdog {
 
       Behaviors.receiveMessagePartial {
         case WrappedChannelStateChanged(ChannelStateChanged(_, channelId, _, remoteNodeId, WAIT_FOR_CHANNEL_READY | WAIT_FOR_DUAL_FUNDING_READY, NORMAL, commitsOpt)) =>
-          val details = commitsOpt.map(commtis => s"capacity: ${commtis.capacity}, announceChannel: ${commtis.announceChannel}")
+          val details = commitsOpt.map(commits => s"capacity: ${commits.latest.capacity}, announceChannel: ${commits.announceChannel}")
           sendMessage(s"New channel established, remoteNodeId: $remoteNodeId, channelId: $channelId, ${details.orNull}", "ChannelStateChanged")
 
         case WrappedChannelClosed(ChannelClosed(_, channelId, closingType, _)) =>
