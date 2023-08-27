@@ -171,7 +171,7 @@ class Messenger private(config: Config, socks5ProxyParams: Option[Socks5ProxyPar
   private def publish(nostrClient: NostrClient, dm: NostrEvent, tag: String)(implicit ec: ExecutionContext): Unit = {
     val log = context.log
     val to = dm.kind match {
-      case EncryptedDirectMessage(_, receiverPublicKey, _, _, _) => s" to ${receiverPublicKey.toBech32} ${receiverPublicKey.toHex}"
+      case em: EncryptedDirectMessage => s" to ${em.receiverPublicKey.toBech32} ${em.receiverPublicKey.toHex}"
       case _ => ""
     }
     debug(s"sending message ${dm.id.toHex} $to", log)
